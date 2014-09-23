@@ -45,22 +45,6 @@ task :"clean" => [ :"containers:clean", :"images:clean" ]
 task :"clobber" => [ :"containers:clobber", :"images:clobber" ]
 
 module Rummager
-
-  def Rummager.docker_history
-    if @docker_history.nil?
-      @docker_history = YAML::Store.new(File.join( Rake.application.original_dir, "docker-history.yaml") )
-      @docker_history.transaction do
-        @docker_history['temporary-containers']= {}
-        @docker_history['static-containers'] = {}
-        @docker_history['job-history'] = {}
-      end # transaction
-    end
-    @docker_history
-  end
-
-  def Rummager.trashlist
-    @trashlist ||= []
-  end
   
   def Rummager.fingerprint ( name )
     image_dir = File.join( Rake.application.original_dir, name )
@@ -95,7 +79,8 @@ module Rummager
       if @idempotent == true
           true
         else
-          Rummager.docker_history.transaction { Rummager.docker_history['job-history'][ @name ] } == true
+          print "WARN: #{@name}.needed? is not actually being checked"
+          true
       end
     end
 
@@ -139,7 +124,6 @@ module Rummager
           new_container.delete
         end
         puts "'#{@name}' complete"
-        Rummager.docker_history.transaction { Rummager.docker_history['job-history'][@name] = true }
       end
     end # initialize
 
@@ -287,15 +271,6 @@ module Rummager
         end
         newcont = Docker::Container.create( create_args )
         puts "created container '#{@container_name}' -> #{newcont.json}" if Rake.verbose == true
-        if @retain_container
-          Rummager.docker_history.transaction do
-            Rummager.docker_history['temporary-containers'][@container_name] = true
-          end # transaction
-        else
-          Rummager.docker_history.transaction do
-            Rummager.docker_history['static-containers'][@container_name] = true
-          end # transaction
-        end
       }
     end
 
