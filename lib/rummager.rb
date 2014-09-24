@@ -281,6 +281,7 @@ module Rummager
     attr_accessor :volumes_from
     attr_accessor :args_start
     attr_accessor :binds
+    attr_accessor :port_bindings
     attr_accessor :publishall
     
     def needed?
@@ -301,7 +302,11 @@ module Rummager
         end
         if @binds
           puts "using BINDS:#{@binds}"
-          start_args.merge!( {'Binds' => @binds} )
+          start_args['Binds'] = @binds
+        end
+        if @port_bindings
+            puts "using PortBindings:#{@port_bindings}"
+            start_args['PortBindings'] = @port_bindings
         end
         if @publishall
           start_args['PublishAllPorts'] = true
@@ -403,6 +408,7 @@ module Rummager
     attr_accessor :volumes_from
     attr_accessor :binds
     attr_accessor :exposed_ports
+    attr_accessor :port_bindings
     attr_accessor :publishall
     attr_accessor :dep_jobs
     attr_accessor :enter_dep_jobs
@@ -418,6 +424,10 @@ module Rummager
       @volumes_from = args.delete(:volumes_from)
       @binds = args.delete(:binds)
       @exposed_ports = args.delete(:exposed_ports)
+      @port_bindings = args.delete(:port_bindings)
+      if (!@exposed_ports.nil? && !@port_bindings.nil?)
+        puts "WARNING: both 'exposed_ports' and 'port_bindings' are defined on #{@container_name}"
+      end
       @publishall = args.delete(:publishall)
       @dep_jobs = args.delete(:dep_jobs)
       @enter_dep_jobs = args.delete(:enter_dep_jobs) || []
@@ -456,6 +466,7 @@ module Rummager
           starttask.args_start = @args_start
           starttask.volumes_from = @volumes_from
           starttask.binds = @binds
+          starttask.port_bindings = @port_bindings
           starttask.publishall = @publishall
           Rake::Task["containers:#{@container_name}:start"].enhance( [ :"containers:#{@container_name}:create" ] )
           if @volumes_from
