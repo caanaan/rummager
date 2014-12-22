@@ -1,11 +1,17 @@
 module Rummager
 
-  def Rummager.fingerprint ( name )
-      image_dir = File.join( Rake.application.original_dir, name )
-      raise IOError, "Directory '#{image_dir}' does not exist!" if ! File::exist?( image_dir )
-      files = Dir["#{image_dir}/**/*"].reject{ |f| File.directory?(f) }
+  def Rummager.fingerprint_obj ( source_object )
+    content = nil
+    if source_object.is_a?( String )
+      content = source_object
+      Digest::MD5.hexdigest( source_object )
+    elsif source_object.is_a?( Dir )
+      files = Dir["#{source_object.path}/**/*"].reject{ |f| File.directory?(f) }
       content = files.map{|f| File.read(f)}.join
-      Digest::MD5.hexdigest(content)
+    else
+      raise ArgumentError, "Unhandled argument: #{source_object.to_s} is not a String or Dir"
+    end
+    Digest::MD5.hexdigest(content)
   end
 
 end # Rummager

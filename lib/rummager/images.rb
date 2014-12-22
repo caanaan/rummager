@@ -40,8 +40,8 @@ end # ImageTaskBase
 
 # Image build tasks
 class Rummager::ImageBuildTask < Rummager::ImageTaskBase
-    attr_accessor :sourcedir
-    attr_accessor :fingerprint
+    attr_accessor :source
+    attr_accessor :add_files
 
     IMG_BUILD_ARGS = {
       :forcerm => true,
@@ -49,7 +49,7 @@ class Rummager::ImageBuildTask < Rummager::ImageTaskBase
     }
 
     def fingerprint
-      @fingerprint ||= Rummager.fingerprint(@sourcedir)
+      @fingerprint ||= Rummager.fingerprint_obj(@source)
     end
 
     def needed?
@@ -61,13 +61,36 @@ class Rummager::ImageBuildTask < Rummager::ImageTaskBase
       @build_args = IMG_BUILD_ARGS
       @actions << Proc.new {
         @build_args[:'t'] = "#{@repo}:#{fingerprint}"
-        puts "Image '#{@repo}': begin build"
-        newimage = Docker::Image.build_from_dir( @sourcedir, @build_args ) do |c|
-          begin
-            print JSON(c)['stream']
-          rescue
-            print "WARN JSON parse error with:" + c
-          end
+        puts "Image '#{@repo}:#{fingerprint}' begin build"
+        if @source.is_a?( Dir )
+            puts "building from dir '#{Dir.to_s}'"
+            newimage = Docker::Image.build_from_dir( @source, @build_args ) do |c|
+              begin
+                print JSON(c)['stream']
+              rescue
+                print "WARN JSON parse error with:" + c
+              end
+            end
+        else
+            puts "building from string/tar"
+            tarout = StringIO.new
+            Gem::Package::TarWriter.new(tarout) do |tarin|
+              tarin.add_file('Dockerfile',0640) { |tf| tf.write(@source) }
+              if @add_files
+                @add_files.each do | af |
+                  puts "add:#{af} to tarfile"
+                  tarin.add_file( af, 0640 ) { |tf| tf.write(IO.read(af)) }
+                end
+              end
+            end
+            
+            newimage = Docker::Image.build_from_tar( tarout.tap(&:rewind), @build_args ) do |c|
+                begin
+                    print JSON(c)['stream']
+                    rescue
+                    print "WARN JSON parse error with:" + c
+                end
+            end
         end
         newimage.tag( 'repo' => @repo,
                       'tag' => 'latest' )
@@ -110,7 +133,8 @@ class Rummager::ImageBuildTask < Rummager::ImageTaskBase
 
     attr_accessor :image_name
     attr_accessor :image_args
-    attr_accessor :sourcedir
+    attr_accessor :source
+    attr_accessor :add_files
     attr_accessor :dep_image
     attr_accessor :dep_other
     attr_accessor :noclean
@@ -120,9 +144,15 @@ class Rummager::ImageBuildTask < Rummager::ImageTaskBase
       @dep_image = args.delete(:dep_image)
       @dep_other = args.delete(:dep_other)
       @noclean = args.delete(:noclean)
-      @sourcedir = args.delete(:sourcedir) || "#{image_name}"
+      @source = args.delete(:source)
+      if @source.nil?
+          @source = Dir.new("./#{@image_name}/")
+          puts "no direct source, use #{@source.path}"
+      end
+      @add_files = args.delete(:add_files)
       @image_args = args
-      @image_args[:repo] = "#{Rummager::REPO_BASE}/#{image_name}"
+      @image_args[:repo] = "#{Rummager.repo_base}/#{image_name}"
+      puts "repo for #{@image_name} will be #{@image_args[:repo]}"
       @image_args[:tag] ||= 'latest'
       yield self if block_given?
       define
@@ -138,13 +168,15 @@ class Rummager::ImageBuildTask < Rummager::ImageTaskBase
           
           buildtask = Rummager::ImageBuildTask.define_task :build
           buildtask.repo = @image_args[:repo]
-          buildtask.tag = Rummager::fingerprint( @sourcedir )
-          buildtask.sourcedir = @sourcedir
+          buildtask.tag = Rummager::fingerprint_obj( @source )
+          buildtask.source = @source
+          buildtask.add_files = @add_files
           
         end # namespace
       end # namespace
 
       if @dep_image
+        puts "'#{@image_name}' is dependent on '#{@dep_image}'"
         # forward prereq for build
         Rake::Task[:"images:#{@image_name}:build"].enhance( [ :"images:#{@dep_image}:build" ] )
         # reverse prereq on parent image for delete

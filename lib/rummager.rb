@@ -3,7 +3,7 @@ require 'logger'
 require 'excon'
 
 module Rummager
-    REPO_BASE = "clickbuild"
+  class << self; attr_accessor :repo_base; end
 end
 
 require 'rummager/containers'
