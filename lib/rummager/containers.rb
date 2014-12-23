@@ -191,21 +191,16 @@ module Rummager
   # Abstract base class for Container tasks
   class ContainerTaskBase < Rake::Task
     attr_accessor :container_name
-    attr_accessor :image_name
-    
-    def image_repo
-      "#{Rummager.repo_base}/#{@image_name}:latest"
-    end
-    
-    def has_container?
-      ! container_obj.nil?
-    end
 
-    def container_obj
+    def docker_obj
       begin
         @container_obj ||= Docker::Container.get(@container_name.to_s)
       rescue
       end
+    end
+
+    def has_container?
+      ! docker_obj.nil?
     end
 
     def is_running?
@@ -218,11 +213,14 @@ module Rummager
     
   end # ContainerTaskBase
 
+
   class ContainerCreateTask < Rummager::ContainerTaskBase
     attr_accessor :args_create
     attr_accessor :command
     attr_accessor :exposed_ports
-  
+    attr_accessor :image_name
+    attr_accessor :repo_base
+    
     def needed?
       ! has_container?
     end
@@ -231,7 +229,7 @@ module Rummager
       super(task_name,app)
       @actions << Proc.new {
         create_args = @args_create
-        create_args['Image'] = image_repo
+        create_args['Image'] = "#{@repo_base}/#{@image_name}:latest"
         create_args['name'] = @container_name
         if @command
           create_args['Cmd'] = @command
@@ -259,7 +257,7 @@ module Rummager
     
     def needed?
       if has_container?
-        container_obj.json['State']['Running'] == false
+        docker_obj.json['State']['Running'] == false
       else
         true
       end
@@ -285,7 +283,7 @@ module Rummager
           start_args['PublishAllPorts'] = true
         end
         puts "Starting: #{@container_name}"
-        container_obj
+        docker_obj
           .start( start_args )
       }
     end # initialize
@@ -297,9 +295,9 @@ module Rummager
 
     def needed?
       if has_container?
-        if container_obj.json['State']['Running'] == false
-          puts "last:#{Time.parse(container_obj.json['State']['StartedAt'])} !! #{Time.parse('0001-01-01T00:00:00Z')}"
-          Time.parse(container_obj.json['State']['StartedAt']) == Time.parse('0001-01-01T00:00:00Z')
+        if docker_obj.json['State']['Running'] == false
+          puts "last:#{Time.parse(docker_obj.json['State']['StartedAt'])} !! #{Time.parse('0001-01-01T00:00:00Z')}"
+          Time.parse(docker_obj.json['State']['StartedAt']) == Time.parse('0001-01-01T00:00:00Z')
         end
       else
         true
@@ -320,7 +318,7 @@ module Rummager
 
     def needed?
       if has_container?
-          container_obj.json['State']['Running'] == true
+          docker_obj.json['State']['Running'] == true
         else
           false
       end
@@ -330,7 +328,7 @@ module Rummager
       super(task_name,app)
       @actions << Proc.new {
         puts "Stopping #{@container_name}" if Rake.verbose == true
-        container_obj.stop
+        docker_obj.stop
       }
     end
     
@@ -346,8 +344,8 @@ module Rummager
     def initialize(task_name, app)
       super(task_name,app)
       @actions << Proc.new {
-        puts "removing container #{@name}:#{container_obj.to_s}" if Rake.verbose == true
-        container_obj.delete(:force => true, :v => true)
+        puts "removing container #{@name}:#{docker_obj.to_s}" if Rake.verbose == true
+        docker_obj.delete(:force => true, :v => true)
       }
     end #initialize
 
@@ -444,8 +442,8 @@ end # class ClickExec
       super(task_name,app)
       @actions << Proc.new {
         puts "Entering: #{@env_name}"
-        container_obj.start( @args_start )
-        exec "docker attach #{container_obj.id}"
+        #        container_obj.start( @args_start )
+        exec "docker attach #{docker_obj.id}"
       }
     end # initialize
 
@@ -455,6 +453,7 @@ end # class ClickExec
   class ClickContainer < Rake::TaskLib
     attr_accessor :container_name
     attr_accessor :image_name
+    attr_accessor :repo_base
     attr_accessor :command
     attr_accessor :args_create
     attr_accessor :args_start
@@ -464,13 +463,14 @@ end # class ClickExec
     attr_accessor :port_bindings
     attr_accessor :publishall
     attr_accessor :dep_jobs
-    attr_accessor :enter_dep_jobs
+    attr_accessor :enter_execs
     attr_accessor :allow_enter
     attr_accessor :noclean
   
     def initialize(container_name,args={})
       @container_name = container_name
       @image_name = args.delete(:image_name) || container_name
+      @repo_base = args.delete(:repo_base) || Rummager.repo_base
       @command = args.delete(:command)
       @args_create = args.delete(:args_create) || CNTNR_ARGS_CREATE
       @args_start = args.delete(:args_start) || {}
@@ -500,6 +500,7 @@ end # class ClickExec
           createtask = Rummager::ContainerCreateTask.define_task :create
           createtask.container_name = @container_name
           createtask.image_name = @image_name
+          createtask.repo_base = @repo_base
           createtask.args_create = @args_create
           createtask.command = @command
           createtask.exposed_ports = @exposed_ports
@@ -564,89 +565,6 @@ end # class ClickExec
     end # define
   end # ClickContainer
   
-  
-  
-  # base class for Container tasks
-  class ContainerExec < Rake::Task
-    attr_accessor :exec_name
-    attr_accessor :container_name
-    attr_accessor :command
-    attr_accessor :stdin_pipe
-    attr_accessor :show_output
-    
-    def has_container?
-      ! container_obj.nil?
-    end
-    
-    def container_obj
-      begin
-        @container_obj ||= Docker::Container.get(@container_name.to_s)
-        rescue
-          puts "WARNING: Docker::Container.get failed"
-      end
-    end
-
-    def initialize(task_name, app)
-      super(task_name,app)
-      @actions << Proc.new {
-        puts "Starting: '#{@exec_name}' on container '#{@container_name}'"
-        puts "Command is: '#{@command}'" if Rake.verbose == true
-        exec_args = []
-        exec_args.push( @command )
-        exec_args.push( stdin: @stdin_pipe ) if !@stdin_pipe.nil
-        if ( @show_output )
-          container_obj.exec( exec_args ) { |stream, chunk| puts "#{chunk}" }
-        else
-          container_obj.exec( exec_args )
-        end
-      }
-    end # initialize
-
-  end # ContainerTaskBase
-  
-  
-  class ClickExec < Rake::TaskLib
-    attr_accessor :exec_name
-    attr_accessor :container_name
-    attr_accessor :command
-    attr_accessor :show_output
-    attr_accessor :stdin_pipe
-    attr_accessor :dep_execs
-    
-    def initialize(exec_name,args={})
-      @exec_name = exec_name
-      @container_name = args.delete(:container_name)
-      if @container_name.nil?
-        raise ArgumentError, "ClickExec '#{@exec_name}' required argument 'container_name' is undefined!"
-      end
-      @command = args.delete(:command)
-      @dep_execs = args.delete(:dep_execs)
-      @attach = args.delete(:attach)
-      if !args.empty?
-        raise ArgumentError, "ClickExec'#{@exec_name}' defenition has unused/invalid key-values:#{args}"
-      end
-      yield self if block_given?
-      define
-    end
-    
-    def define
-      namespace "containers" do
-        namespace @container_name do
-          namespace "exec" do
-            namespace @exec_name do
-              # create exec task
-              createexec = Rummager::ContainerExec.define_task :create
-              createexec.container_name = @container_name
-              createexec.command = @command
-              createexec.show_output = @show_output
-              createexec.stdin_pipe = @stdin_pipe
-            end # @exec_name
-          end # namespace "exec"
-        end # namespace "continers"
-      end # namespace "containers"
-    end # define
-  end # class ClickExec
-
 end   # module Rummager
 
 __END__
