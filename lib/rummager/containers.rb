@@ -346,12 +346,93 @@ module Rummager
     def initialize(task_name, app)
       super(task_name,app)
       @actions << Proc.new {
-        puts "removing container #{@name}:#{t.container_obj.to_s}" if Rake.verbose == true
+        puts "removing container #{@name}:#{container_obj.to_s}" if Rake.verbose == true
         container_obj.delete(:force => true, :v => true)
       }
     end #initialize
 
   end #ContainerRMTask
+
+  # base class for Container tasks
+  class ContainerExec < Rummager::ContainerTaskBase
+    attr_accessor :exec_name
+    attr_accessor :container_name
+    attr_accessor :command
+    attr_accessor :stdin_pipe
+    attr_accessor :show_output
+    
+    def has_container?
+      ! container_obj.nil?
+    end
+    
+    def container_obj
+      begin
+        @container_obj ||= Docker::Container.get(@container_name.to_s)
+        rescue
+        puts "WARNING: Docker::Container.get failed"
+      end
+    end
+    
+    def initialize(task_name, app)
+      super(task_name,app)
+      @actions << Proc.new {
+        puts "Starting: '#{@exec_name}' on container '#{@container_name}'"
+        puts "Command is: '#{@command}'" if Rake.verbose == true
+        exec_args = []
+        exec_args.push( @command )
+        exec_args.push( stdin: @stdin_pipe ) if !@stdin_pipe.nil
+        if ( @show_output )
+          container_obj.exec( exec_args ) { |stream, chunk| puts "#{chunk}" }
+          else
+          container_obj.exec( exec_args )
+        end
+      }
+    end # initialize
+    
+  end # ContainerTaskBase
+
+
+class ClickExec < Rake::TaskLib
+  attr_accessor :exec_name
+  attr_accessor :container_name
+  attr_accessor :command
+  attr_accessor :show_output
+  attr_accessor :stdin_pipe
+  attr_accessor :dep_execs
+  
+  def initialize(exec_name,args={})
+    @exec_name = exec_name
+    @container_name = args.delete(:container_name)
+    if @container_name.nil?
+      raise ArgumentError, "ClickExec '#{@exec_name}' required argument 'container_name' is undefined!"
+    end
+    @command = args.delete(:command)
+    @dep_execs = args.delete(:dep_execs)
+    @attach = args.delete(:attach)
+    if !args.empty?
+      raise ArgumentError, "ClickExec'#{@exec_name}' defenition has unused/invalid key-values:#{args}"
+    end
+    yield self if block_given?
+    define
+  end
+  
+  def define
+    namespace "containers" do
+      namespace @container_name do
+        namespace "exec" do
+          namespace @exec_name do
+            # create exec task
+            createexec = Rummager::ContainerExec.define_task :create
+            createexec.container_name = @container_name
+            createexec.command = @command
+            createexec.show_output = @show_output
+            createexec.stdin_pipe = @stdin_pipe
+          end # @exec_name
+        end # namespace "exec"
+      end # namespace "continers"
+    end # namespace "containers"
+  end # define
+end # class ClickExec
 
   class ContainerEnterTask < Rummager::ContainerTaskBase
     attr_accessor :env_name
