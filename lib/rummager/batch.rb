@@ -115,7 +115,7 @@ class Rummager::ClickJob < Rake::TaskLib
         # do task
         gotask = Rummager::BatchJobTask.define_task :"#{@job_name}"
         gotask.create_args = CNTNR_ARGS_CREATE.clone
-        gotask.create_args['Image'] = "#{REPO_BASE}/#{@image_name}:latest"
+        gotask.create_args['Image'] = "#{Rummager.repo_base}/#{@image_name}:latest"
         gotask.create_args['name'] = @container_name
         gotask.create_args['Cmd'] = ["-c",@operation]
         
