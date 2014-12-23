@@ -168,21 +168,41 @@ module Rummager
         puts "Starting: #{@container_name}"
         docker_obj
           .start( start_args )
-        if @exec_list
-          puts "exec_list"
-          begin
-            exec_list.each do |ae|
-              if ae.delete(:show_output)
-                puts "showing exec output"
-                docker_obj.exec(ae.delete(:cmd),ae) { |stream,chunk| puts chunk }
-              else
-                puts "silent exec"
-                docker_obj.exec(ae.delete(:cmd),ae)
-              end
+        exec_list = []
+        if @exec_always
+          exec_list.concat( @exec_always )
+        end
+        if @exec_once
+          puts "adding exec_once list"
+          @exec_once.each do |eo|
+            if eo[:ident].nil?
+              puts "using hash ident"
+              eo[:ident]=Digest::MD5.hexdigest(eo.to_s)
             end
-          rescue => ex
-            raise IOError, "exec failed:#{ex.message}"
+            begin
+              docker_obj.copy("/.once_#{eo[:ident]}")
+            rescue
+              exec_list.push(eo)
+            end
           end
+        end
+        puts "exec_list"
+        begin
+          exec_list.each do |ae|
+            touch_ident=ae.delete(:ident)
+            if ae.delete(:hide_output)
+              ae[:detach]=true
+              docker_obj.exec(ae.delete(:cmd),ae)
+            else
+              docker_obj.exec(ae.delete(:cmd),ae) { |stream,chunk| puts "#{chunk}" }
+            end
+            if touch_ident
+              puts "ident:#{touch_ident}"
+              docker_obj.exec(["sudo","touch","/.once_#{touch_ident}"])
+            end
+          end
+        rescue => ex
+          raise IOError, "exec failed:#{ex.message}"
         end
       }
     end # initialize
