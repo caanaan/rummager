@@ -163,7 +163,7 @@ module Rummager
             start_args['PortBindings'] = @port_bindings
         end
         if @publishall
-          start_args['PublishAllPorts'] = true  if Rake.verbose == true
+          start_args['PublishAllPorts'] = true
         end
         puts "Starting: #{@container_name}"
         docker_obj
@@ -173,10 +173,10 @@ module Rummager
           exec_list.concat( @exec_always )
         end
         if @exec_once
-          puts "adding exec_once list"
+          puts "adding exec_once list" if Rake.verbose == true
           @exec_once.each do |eo|
             if eo[:ident].nil?
-              puts "using hash ident"
+              puts "using hash ident" if Rake.verbose == true
               eo[:ident]=Digest::MD5.hexdigest(eo.to_s)
             end
             begin
