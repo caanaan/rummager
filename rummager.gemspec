@@ -1,10 +1,10 @@
 Gem::Specification.new do |s|
   s.name = 'rummager'
-  s.version = '0.3.1'
+  s.version = '0.3.2'
   s.date = '2014-12-15'
   s.summary = 'Rummager'
   s.description = 'Rake automation of Cross-Compiler toolchains, particularlty Yocto'
-  s.authors = ["Ted Vaida, KS Technologies LLC"]
+  s.authors = ["Theodore Vaida, KS Technologies LLC"]
   s.email = 'ted@kstechnologies.com'
   s.homepage = 'https://rubygems.org/gems/rummager'
   s.license = 'Proprietary'

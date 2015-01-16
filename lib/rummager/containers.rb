@@ -190,6 +190,7 @@ module Rummager
         begin
           exec_list.each do |ae|
             touch_ident=ae.delete(:ident)
+            restart_after=ae.delete(:restart_after)
             if ae.delete(:hide_output)
               ae[:detach]=true
               docker_obj.exec(ae.delete(:cmd),ae)
@@ -199,6 +200,9 @@ module Rummager
             if touch_ident
               puts "ident:#{touch_ident}"
               docker_obj.exec(["sudo","touch","/.once_#{touch_ident}"])
+            end
+            if restart_after==true
+                docker_obj.restart()
             end
           end
         rescue => ex
