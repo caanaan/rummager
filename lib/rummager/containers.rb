@@ -169,9 +169,6 @@ module Rummager
         docker_obj
           .start( start_args )
         exec_list = []
-        if @exec_always
-          exec_list.concat( @exec_always )
-        end
         if @exec_once
           puts "adding exec_once list" if Rake.verbose == true
           @exec_once.each do |eo|
@@ -185,9 +182,14 @@ module Rummager
               exec_list.push(eo)
             end
           end
+          puts "exec_once list finished" if Rake.verbose == true
         end
-        puts "exec_list"
+        if @exec_always
+            puts "adding exec_always list" if Rake.verbose == true
+            exec_list.concat( @exec_always )
+        end
         begin
+          puts "issuing exec calls" if Rake.verbose == true
           exec_list.each do |ae|
             touch_ident=ae.delete(:ident)
             restart_after=ae.delete(:restart_after)
@@ -202,8 +204,10 @@ module Rummager
               docker_obj.exec(["sudo","touch","/.once_#{touch_ident}"])
             end
             if restart_after==true
+                puts "exec item requires container restart" if Rake.verbose == true
                 docker_obj.restart()
             end
+            puts "all exec calls complete" if Rake.verbose == true
           end
         rescue => ex
           raise IOError, "exec failed:#{ex.message}"
