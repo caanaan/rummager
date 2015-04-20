@@ -1,7 +1,8 @@
 rummager
 ========
 
-Ruby and RAKE tools for containerized toolchains like yocto
+Rake integration with docker-api for controling docker containers with build
+tools like Yocto
 
 Usage in Rakefile
 -----------------
@@ -18,7 +19,6 @@ Usage in Rakefile
 	  :image_name => 'my_image',
 	}
   
-
 Install
 =======
 
