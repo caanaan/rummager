@@ -78,7 +78,6 @@ module Rummager
     
   end # ContainerTaskBase
 
-
   class ContainerCreateTask < Rummager::ContainerTaskBase
     attr_accessor :args_create
     attr_accessor :command
@@ -119,8 +118,7 @@ module Rummager
     attr_accessor :binds
     attr_accessor :port_bindings
     attr_accessor :publishall
-    attr_accessor :exec_once
-    attr_accessor :exec_always
+    attr_accessor :exec_on_start
     attr_accessor :start_once
     
     def needed?
@@ -166,52 +164,22 @@ module Rummager
           start_args['PublishAllPorts'] = true
         end
         puts "Starting: #{@container_name}"
-        docker_obj
-          .start( start_args )
-        exec_list = []
-        if @exec_once
-          puts "adding exec_once list" if Rake.verbose == true
-          @exec_once.each do |eo|
-            if eo[:ident].nil?
-              puts "using hash ident" if Rake.verbose == true
-              eo[:ident]=Digest::MD5.hexdigest(eo.to_s)
+        docker_obj.start( start_args )
+        if @exec_on_start
+          begin
+            puts "issuing exec calls" if Rake.verbose == true
+            exec_on_start.each do |ae|
+              if ae.delete(:hide_output)
+                docker_obj.exec(ae.delete(:cmd),ae)
+              else
+                docker_obj.exec(ae.delete(:cmd),ae) { |stream,chunk| puts "#{chunk}" }
+              end
+              puts "all exec calls complete" if Rake.verbose == true
             end
-            begin
-              docker_obj.copy("/.once_#{eo[:ident]}")
-            rescue
-              exec_list.push(eo)
-            end
+          rescue => ex
+            raise IOError, "exec failed:#{ex.message}"
           end
-          puts "exec_once list finished" if Rake.verbose == true
-        end
-        if @exec_always
-            puts "adding exec_always list" if Rake.verbose == true
-            exec_list.concat( @exec_always )
-        end
-        begin
-          puts "issuing exec calls" if Rake.verbose == true
-          exec_list.each do |ae|
-            touch_ident=ae.delete(:ident)
-            restart_after=ae.delete(:restart_after)
-            if ae.delete(:hide_output)
-              ae[:detach]=true
-              docker_obj.exec(ae.delete(:cmd),ae)
-            else
-              docker_obj.exec(ae.delete(:cmd),ae) { |stream,chunk| puts "#{chunk}" }
-            end
-            if touch_ident
-              puts "ident:#{touch_ident}"
-              docker_obj.exec(["sudo","touch","/.once_#{touch_ident}"])
-            end
-            if restart_after==true
-                puts "exec item requires container restart" if Rake.verbose == true
-                docker_obj.restart()
-            end
-            puts "all exec calls complete" if Rake.verbose == true
-          end
-        rescue => ex
-          raise IOError, "exec failed:#{ex.message}"
-        end
+        end # @exec_on_start
       }
     end # initialize
     
@@ -271,6 +239,7 @@ module Rummager
 
   end #ContainerEnterTask
 
+
   # Template to generate tasks for Container lifecycle
   class ClickContainer < Rake::TaskLib
     attr_accessor :container_name
@@ -285,10 +254,9 @@ module Rummager
     attr_accessor :port_bindings
     attr_accessor :publishall
     attr_accessor :dep_jobs
-    attr_accessor :exec_once
-    attr_accessor :exec_always
-    attr_accessor :start_once
+    attr_accessor :exec_on_start
     attr_accessor :allow_enter
+    attr_accessor :enter_dep_jobs
     attr_accessor :noclean
   
     def initialize(container_name,args={})
@@ -307,9 +275,7 @@ module Rummager
       end
       @publishall = args.delete(:publishall)
       @dep_jobs = args.delete(:dep_jobs)
-      @exec_once = args.delete(:exec_once)
-      @exec_always = args.delete(:exec_always)
-      @start_once = args.delete(:start_once)
+      @exec_on_start = args.delete(:exec_on_start)
       @enter_dep_jobs = args.delete(:enter_dep_jobs) || []
       @allow_enter = args.delete(:allow_enter)
       @noclean = args.delete(:noclean)
@@ -324,20 +290,20 @@ module Rummager
       namespace "containers" do
         namespace @container_name do
           # create task
-          createtask = Rummager::ContainerCreateTask.define_task :create
-          createtask.container_name = @container_name
-          createtask.image_name = @image_name
-          createtask.repo_base = @repo_base
-          createtask.args_create = @args_create
-          createtask.command = @command
-          createtask.exposed_ports = @exposed_ports
+          realcreatetask = Rummager::ContainerCreateTask.define_task :create
+          realcreatetask.container_name = @container_name
+          realcreatetask.image_name = @image_name
+          realcreatetask.repo_base = @repo_base
+          realcreatetask.args_create = @args_create
+          realcreatetask.command = @command
+          realcreatetask.exposed_ports = @exposed_ports
           Rake::Task["containers:#{@container_name}:create"].enhance( [ :"images:#{@image_name}:build" ] )
           if @dep_jobs
             @dep_jobs.each do |dj|
-              Rake::Task["containers:#{@container_name}:create"].enhance( [ :"batchjobs:#{dj}" ] )
+              Rake::Task["containers:#{@container_name}:create"].enhance( [ :"#{dj}" ] )
             end
           end
-          
+
           # start task
           starttask = Rummager::ContainerStartTask.define_task :start
           starttask.container_name = @container_name
@@ -346,9 +312,7 @@ module Rummager
           starttask.binds = @binds
           starttask.port_bindings = @port_bindings
           starttask.publishall = @publishall
-          starttask.exec_once = @exec_once
-          starttask.exec_always = @exec_always
-          starttask.start_once = @start_once
+          starttask.exec_on_start = @exec_on_start
           
           Rake::Task["containers:#{@container_name}:start"].enhance( [ :"containers:#{@container_name}:create" ] )
           if @volumes_from
@@ -361,7 +325,7 @@ module Rummager
             entertask = Rummager::ContainerEnterTask.define_task :enter
             entertask.container_name = @container_name
             @enter_dep_jobs.each do |edj|
-              Rake::Task["containers:#{@container_name}:enter"].enhance([ :"batchjobs:#{edj}" ])
+              Rake::Task["containers:#{@container_name}:enter"].enhance([ :"containers:#{@container_name}:jobs:#{edj}" ])
             end
             Rake::Task["containers:#{@container_name}:enter"].enhance([ :"containers:#{@container_name}:start" ])
           end # allow_enter
@@ -383,15 +347,120 @@ module Rummager
             Rake::Task[:"containers:clean"].enhance( [ :"containers:#{@container_name}:rm" ] )
           end
           
-        end # namespace
-      end # namespace
+        end # namespace @container_name
+      end # namespace "containers"
         
       Rake::Task["containers:#{@container_name}:rm"].enhance( [ :"containers:#{@container_name}:stop" ] )
       Rake::Task[:"containers:stop"].enhance( [ :"containers:#{@container_name}:stop" ] )
 
     end # define
-  end # ClickContainer
+  end # class ClickContainer
+
+
+  class ContainerExecTask < Rummager::ContainerTaskBase
+    attr_accessor :exec_list
+    attr_accessor :ident_hash
+
+    def ident_filename
+      "/.once-#{@ident_hash}"
+    end
+
+    def needed?
+      if ! @ident_hash.nil?
+        puts "checking for #{ident_filename} in container"
+        begin
+          docker_obj.copy("#{ident_filename}")
+          return false
+        rescue
+          puts "#{ident_filename} not found"
+        end
+      end
+      # no ident hash, or not found
+      true
+    end
+    
+    def initialize(task_name, app)
+      super(task_name,app)
+      @actions << Proc.new {
   
+        @exec_list.each do |e|
+          
+          hide_output = e.delete(:hide_output)
+          cmd = e.delete(:cmd)
+          restart_after = e.delete(:restart_after)
+          
+          if hide_output == true
+            docker_obj.exec(cmd)
+          else
+          docker_obj.exec(cmd) { |stream,chunk| puts "#{chunk}" }
+          end
+        
+          if restart_after==true
+            puts "exec item requires container restart" if Rake.verbose == true
+            docker_obj.restart()
+          end
+          
+        end # @exec_list.each
+
+        if ! @ident_hash.nil?
+          puts "marking #{task_name} completed: #{ident_filename}" if Rake.verbose == true
+          docker_obj.exec(["/usr/bin/sudo","/usr/bin/touch","#{ident_filename}"])
+        end
+
+      }
+      
+    end # initialize
+    
+  end # class ContainerExecTask
+
+
+  class ClickCntnrExec < Rake::TaskLib
+    attr_accessor :job_name
+    attr_accessor :container_name
+    attr_accessor :exec_list
+    attr_accessor :ident_hash
+    
+    def initialize(job_name,args={})
+      @job_name = job_name
+      if !args.delete(:run_always)
+        @ident_hash = Digest::MD5.hexdigest(args.to_s)
+        puts "#{job_name} ident: #{@ident_hash}" if Rake.verbose == true
+      end
+      
+      @container_name = args.delete(:container_name)
+      if !defined? @container_name
+        raise ArgumentError, "ClickContainer'#{@job_name}' missing comtainer_name:#{args}"
+      end
+      @exec_list = args.delete(:exec_list)
+      if !args.empty?
+        raise ArgumentError, "ClickExec'#{@job_name}' defenition has unused/invalid key-values:#{args}"
+      end
+      yield self if block_given?
+      define
+    end  # initialize
+    
+    
+    def define
+      
+      namespace "containers" do
+        namespace @container_name do
+          namespace "jobs" do
+            
+            exectask = Rummager::ContainerExecTask.define_task :"#{job_name}"
+            exectask.container_name = @container_name
+            exectask.exec_list = @exec_list
+            exectask.ident_hash = @ident_hash
+            Rake::Task[:"containers:#{@container_name}:jobs:#{job_name}"].enhance( [:"containers:#{@container_name}:start"] )
+            
+          end # namespave "jobs"
+        end # namespace @container_name
+      end # namespace "containers"
+      
+    end # define
+    
+  end # class ClickCntnrExec
+
+
 end   # module Rummager
 
 __END__

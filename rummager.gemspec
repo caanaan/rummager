@@ -1,13 +1,13 @@
 Gem::Specification.new do |s|
   s.name = 'rummager'
-  s.version = '0.3.3'
-  s.date = '2014-12-15'
+  s.version = '0.5.0'
+  s.date = '2015-04-17'
   s.summary = 'Rummager'
-  s.description = 'Rake automation of Cross-Compiler toolchains, particularlty Yocto'
-  s.authors = ["Theodore Vaida, KS Technologies LLC"]
-  s.email = 'ted@kstechnologies.com'
-  s.homepage = 'https://rubygems.org/gems/rummager'
-  s.license = 'Proprietary'
+  s.description = 'Rake integration with docker-api'
+  s.authors = ["y3ddet, ted@xassembly.com"]
+  s.email = 'ted@xassembly.com'
+  s.homepage = 'https://github.com/exactassembly/rummager'
+  s.license = 'GPLv2'
   s.files = ['lib/rummager.rb',
                 'lib/rummager/containers.rb',
                 'lib/rummager/images.rb',
@@ -16,5 +16,5 @@ Gem::Specification.new do |s|
   s.add_runtime_dependency "rake", [">= 10.3.2"]
   s.add_runtime_dependency "logger", [">= 1.2.8"]
   s.add_runtime_dependency "json", [">= 1.7.7"]
-  s.add_runtime_dependency "docker-api", [">= 1.17.0"]
+  s.add_runtime_dependency "docker-api", [">= 1.21.0"]
 end
