@@ -419,6 +419,7 @@ module Rummager
     attr_accessor :container_name
     attr_accessor :exec_list
     attr_accessor :ident_hash
+    attr_accessor :dep_jobs
     
     def initialize(job_name,args={})
       @job_name = job_name
@@ -432,6 +433,7 @@ module Rummager
         raise ArgumentError, "ClickContainer'#{@job_name}' missing comtainer_name:#{args}"
       end
       @exec_list = args.delete(:exec_list)
+      @dep_jobs = args.delete(:dep_jobs)
       if !args.empty?
         raise ArgumentError, "ClickExec'#{@job_name}' defenition has unused/invalid key-values:#{args}"
       end
@@ -451,6 +453,11 @@ module Rummager
             exectask.exec_list = @exec_list
             exectask.ident_hash = @ident_hash
             Rake::Task[:"containers:#{@container_name}:jobs:#{job_name}"].enhance( [:"containers:#{@container_name}:start"] )
+            if @dep_jobs
+                @dep_jobs.each do |dj|
+                    Rake::Task["containers:#{@container_name}:jobs:#{job_name}"].enhance([ :"containers:#{@container_name}:jobs:#{dj}" ])
+                end
+            end
             
           end # namespave "jobs"
         end # namespace @container_name
