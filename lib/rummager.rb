@@ -8,11 +8,12 @@ end
 
 require 'rummager/containers'
 require 'rummager/images'
+require 'rummager/util'
 
 # allow long runs through Excon, otherwise commands that
 # take a long time will fail due to timeout
-Excon.defaults[:write_timeout] = 1000
-Excon.defaults[:read_timeout] = 1000
+Excon.defaults[:write_timeout] = 10000
+Excon.defaults[:read_timeout] = 10000
 
 # provide Docker verboseness
 if Rake.verbose == true
