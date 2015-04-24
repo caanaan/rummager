@@ -113,7 +113,8 @@ class Rummager::ImageBuildTask < Rummager::ImageTaskBase
         end
       end
       newimage.tag( 'repo' => @repo,
-                   'tag' => 'latest' )
+                    'tag' => 'latest',
+                    'force' => true )
                    puts "Image '#{@repo}': build complete"
                    puts "#{@build_args} -> #{newimage.json}" if Rake.verbose == true
     }
