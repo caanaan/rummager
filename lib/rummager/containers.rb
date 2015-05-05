@@ -346,7 +346,12 @@ module Rummager
           # Remove task
           rmtask = Rummager::ContainerRMTask.define_task :rm
           rmtask.container_name = @container_name
-          Rake::Task["images:#{@image_name}:rmi"].enhance( [ "containers:#{@container_name}:rm" ] )
+          if @image_nobuild == true
+            puts "skipping #{@image_name}:rmi dependency on #{@container_name}:rm" if Rake.verbose == true
+          else
+            Rake::Task["images:#{@image_name}:rmi"].enhance( [ "containers:#{@container_name}:rm" ] )
+          end
+          
           Rake::Task["containers:#{@container_name}:rm"].enhance( [ :"containers:#{@container_name}:stop" ] )
           
           if @noclean == true
