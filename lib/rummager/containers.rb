@@ -380,12 +380,12 @@ module Rummager
 
     def needed?
       if ! @ident_hash.nil?
-        puts "checking for #{ident_filename} in container"
+        puts "checking for #{ident_filename} in container" if Rake.verbose == true
         begin
           docker_obj.copy("#{ident_filename}")
           return false
         rescue
-          puts "#{ident_filename} not found"
+          puts "#{ident_filename} not found" if Rake.verbose == true
         end
       end
       # no ident hash, or not found
