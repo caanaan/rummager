@@ -244,6 +244,7 @@ module Rummager
   class ClickContainer < Rake::TaskLib
     attr_accessor :container_name
     attr_accessor :image_name
+    attr_accessor :image_nobuild
     attr_accessor :repo_base
     attr_accessor :command
     attr_accessor :args_create
@@ -262,6 +263,7 @@ module Rummager
     def initialize(container_name,args={})
       @container_name = container_name
       @image_name = args.delete(:image_name) || container_name
+      @image_nobuild = args.delete(:image_nobuild)
       @repo_base = args.delete(:repo_base) || Rummager.repo_base
       @command = args.delete(:command)
       @args_create = args.delete(:args_create) || CNTNR_ARGS_CREATE
@@ -297,7 +299,13 @@ module Rummager
           realcreatetask.args_create = @args_create
           realcreatetask.command = @command
           realcreatetask.exposed_ports = @exposed_ports
-          Rake::Task["containers:#{@container_name}:create"].enhance( [ :"images:#{@image_name}:build" ] )
+          
+          if @image_nobuild == true
+            puts "skipping image build - assuming it exists" if Rake.verbose == true
+          else
+            Rake::Task["containers:#{@container_name}:create"].enhance( [ :"images:#{@image_name}:build" ] )
+          end
+          
           if @dep_jobs
             @dep_jobs.each do |dj|
               Rake::Task["containers:#{@container_name}:create"].enhance( [ :"#{dj}" ] )
