@@ -4,6 +4,7 @@ module Rummager
         {
             :cmd=> [ "/bin/bash","-c", cmdstring ],
         }
+    end # cmd_bashexec
 
     def Rummager.cmd_gitmirror(filepath,giturl)
         {
@@ -15,7 +16,7 @@ module Rummager
                 "fi\n"
             ],
         }
-    end # mirror_or_update
+    end # cmd_gitmirror
 
     def Rummager.cmd_gitupdate(filepath)
         {
