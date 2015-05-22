@@ -373,13 +373,23 @@ module Rummager
   class ContainerExecTask < Rummager::ContainerTaskBase
     attr_accessor :exec_list
     attr_accessor :ident_hash
+    attr_accessor :needed_test
 
     def ident_filename
       "/.once-#{@ident_hash}"
     end
 
     def needed?
-      if ! @ident_hash.nil?
+      if ! @needed_test.nil?
+        puts "running needed_test '#{needed_test}' in '#{@container_name}'" if Rake.verbose == true
+        begin
+          return_arry = docker_obj.exec(@needed_test)
+          puts "test '#{needed_test}' => '#{return_arry[0]':#{return_arry[2]}" if Rake.verbose == true
+          return return_arry[2]
+        rescue => ex
+          puts "test '#{needed_test}' failed in '#{@container_name}':#{ex.message}" if Rake.verbose == true
+        end
+      elsif ! @ident_hash.nil?
         puts "checking for #{ident_filename} in container" if Rake.verbose == true
         begin
           docker_obj.copy("#{ident_filename}")
@@ -387,6 +397,8 @@ module Rummager
         rescue
           puts "#{ident_filename} not found" if Rake.verbose == true
         end
+      else
+        puts "neither @needed_test nor @ident_hash defined for #{@task_name}" if Rake.verbose == true
       end
       # no ident hash, or not found
       true
@@ -431,6 +443,7 @@ module Rummager
     attr_accessor :job_name
     attr_accessor :container_name
     attr_accessor :exec_list
+    attr_accessor :needed_test
     attr_accessor :ident_hash
     attr_accessor :dep_jobs
     
@@ -447,6 +460,7 @@ module Rummager
       end
       @exec_list = args.delete(:exec_list)
       @dep_jobs = args.delete(:dep_jobs)
+      @needed_test = args.delete(:needed_test)
       if !args.empty?
         raise ArgumentError, "ClickExec'#{@job_name}' defenition has unused/invalid key-values:#{args}"
       end
