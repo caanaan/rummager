@@ -384,7 +384,7 @@ module Rummager
         puts "running needed_test '#{needed_test}' in '#{@container_name}'" if Rake.verbose == true
         begin
           return_arry = docker_obj.exec(@needed_test)
-          puts "test '#{needed_test}' => '#{return_arry[0]':#{return_arry[2]}" if Rake.verbose == true
+          puts "test '#{needed_test}' => '#{return_arry[0]}':#{return_arry[2]}" if Rake.verbose == true
           return return_arry[2]
         rescue => ex
           puts "test '#{needed_test}' failed in '#{@container_name}':#{ex.message}" if Rake.verbose == true
