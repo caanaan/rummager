@@ -133,7 +133,7 @@ class Rummager::ImageRMITask < Rummager::ImageTaskBase
   def initialize(task_name, app)
     super(task_name,app)
     @actions << Proc.new {
-      puts "removing image '#{t.repo}'" if Rake.verbose == true
+      puts "removing image '#{@repo}'" if Rake.verbose == true
       Docker::Image.all(:all => true).each do |img|
         if img.info['RepoTags'].any? { |s| s.include?(@repo) }
           begin
