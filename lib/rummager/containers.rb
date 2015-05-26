@@ -322,26 +322,33 @@ module Rummager
           starttask.publishall = @publishall
           starttask.exec_on_start = @exec_on_start
           
+          # ensure that containers from which volumes will be attached
+          # are started before this container is started, otherwise
+          # docker volumes_from will fail
           Rake::Task["containers:#{@container_name}:start"].enhance( [ :"containers:#{@container_name}:create" ] )
           if @volumes_from
             @volumes_from.each do |vf|
               Rake::Task["containers:#{@container_name}:create"].enhance([:"containers:#{vf}:start" ])
             end
           end
-          if @allow_enter
-            # build and jump into an environment
-            entertask = Rummager::ContainerEnterTask.define_task :enter
-            entertask.container_name = @container_name
-            @enter_dep_jobs.each do |edj|
-              Rake::Task["containers:#{@container_name}:enter"].enhance([ :"containers:#{@container_name}:jobs:#{edj}" ])
-            end
-            Rake::Task["containers:#{@container_name}:enter"].enhance([ :"containers:#{@container_name}:start" ])
-          end # allow_enter
 
           # stop task
           stoptask = Rummager::ContainerStopTask.define_task :stop
           stoptask.container_name = @container_name
           Rake::Task[:"containers:stop"].enhance( [ :"containers:#{@container_name}:stop" ] )
+
+          # enter task
+          if @allow_enter
+            # build and jump into an environment
+            entertask = Rummager::ContainerEnterTask.define_task :enter
+            entertask.container_name = @container_name
+            Rake::Task["containers:#{@container_name}:enter"].enhance([ :"containers:#{@container_name}:start" ])
+            # wire in any jobs marked as required to enter
+            # jobs must be defined on this container
+            @enter_dep_jobs.each do |edj|
+              Rake::Task["containers:#{@container_name}:enter"].enhance([ :"containers:#{@container_name}:jobs:#{edj}" ])
+            end
+          end # allow_enter
           
           # Remove task
           rmtask = Rummager::ContainerRMTask.define_task :rm
@@ -383,11 +390,12 @@ module Rummager
       if ! @needed_test.nil?
         puts "running needed_test '#{needed_test}' in '#{@container_name}'" if Rake.verbose == true
         begin
-          return_arry = docker_obj.exec(@needed_test)
-          puts "test '#{needed_test}' => '#{return_arry[0]}':#{return_arry[2]}" if Rake.verbose == true
-          return return_arry[2]
+            return_arry = docker_obj.exec(@needed_test)
+          puts "test '#{needed_test}' => '#{return_arry[0]}':#{return_arry[2]}"  if Rake.verbose == true
+          return (0 == return_arry[2])
         rescue => ex
-          puts "test '#{needed_test}' failed in '#{@container_name}':#{ex.message}" if Rake.verbose == true
+          puts "test '#{needed_test}' failed in '#{@container_name}':#{ex.message}"
+          return false
         end
       elsif ! @ident_hash.nil?
         puts "checking for #{ident_filename} in container" if Rake.verbose == true
@@ -479,6 +487,7 @@ module Rummager
             exectask.container_name = @container_name
             exectask.exec_list = @exec_list
             exectask.ident_hash = @ident_hash
+            exectask.needed_test = @needed_test
             Rake::Task[:"containers:#{@container_name}:jobs:#{job_name}"].enhance( [:"containers:#{@container_name}:start"] )
             if @dep_jobs
                 @dep_jobs.each do |dj|
