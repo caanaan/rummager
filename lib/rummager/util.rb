@@ -1,5 +1,11 @@
 module Rummager
 
+    def Rummager.cmd_shexec(cmdstring)
+        {
+            :cmd=> [ "/bin/sh","-c", cmdstring ],
+        }
+    end # cmd_bashexec
+
     def Rummager.cmd_bashexec(cmdstring)
         {
             :cmd=> [ "/bin/bash","-c", cmdstring ],
