@@ -22,3 +22,13 @@ Rummager::ClickImage.new 'img_two', {
       'README.md',
     ]
 }
+
+task :test_image_build => [
+    :"images:img_one:build",
+    :"images:img_two:build",
+]
+
+task :test_image_rmi => [
+    :"images:img_two:rmi",
+    :"images:img_one:rmi",
+]
