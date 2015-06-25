@@ -381,6 +381,7 @@ module Rummager
     attr_accessor :exec_list
     attr_accessor :ident_hash
     attr_accessor :needed_test
+    attr_accessor :user
 
     def ident_filename
       "/.once-#{@ident_hash}"
@@ -420,12 +421,13 @@ module Rummager
           
           hide_output = e.delete(:hide_output)
           cmd = e.delete(:cmd)
+          opts = { :user => @user }
           restart_after = e.delete(:restart_after)
           
           if hide_output == true
-            docker_obj.exec(cmd)
+            docker_obj.exec(cmd,opts)
           else
-          docker_obj.exec(cmd) { |stream,chunk| puts "#{chunk}" }
+            docker_obj.exec(cmd,opts) { |stream,chunk| puts "#{chunk}" }
           end
         
           if restart_after==true
@@ -454,6 +456,7 @@ module Rummager
     attr_accessor :needed_test
     attr_accessor :ident_hash
     attr_accessor :dep_jobs
+    attr_accessor :user
     
     def initialize(job_name,args={})
       @job_name = job_name
@@ -469,6 +472,7 @@ module Rummager
       @exec_list = args.delete(:exec_list)
       @dep_jobs = args.delete(:dep_jobs)
       @needed_test = args.delete(:needed_test)
+      @userid = args.delete(:userid)
       if !args.empty?
         raise ArgumentError, "ClickExec'#{@job_name}' defenition has unused/invalid key-values:#{args}"
       end
@@ -488,6 +492,7 @@ module Rummager
             exectask.exec_list = @exec_list
             exectask.ident_hash = @ident_hash
             exectask.needed_test = @needed_test
+            exectask.user = @user
             Rake::Task[:"containers:#{@container_name}:jobs:#{job_name}"].enhance( [:"containers:#{@container_name}:start"] )
             if @dep_jobs
                 @dep_jobs.each do |dj|

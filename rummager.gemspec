@@ -1,7 +1,7 @@
 Gem::Specification.new do |s|
   s.name = 'rummager'
-  s.version = '0.5.9'
-  s.date = '2015-05-26'
+  s.version = '0.5.10'
+  s.date = '2015-06-25'
   s.summary = 'Rummager'
   s.description = 'Rake integration with docker-api'
   s.authors = ["y3ddet, ted@xassembly.com"]
@@ -16,5 +16,5 @@ Gem::Specification.new do |s|
   s.add_runtime_dependency "rake", [">= 10.3.2"]
   s.add_runtime_dependency "logger", [">= 1.2.8"]
   s.add_runtime_dependency "json", [">= 1.7.7"]
-  s.add_runtime_dependency "docker-api", [">= 1.21.0"]
+  s.add_runtime_dependency "docker-api", [">= 1.21.4"]
 end
