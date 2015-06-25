@@ -472,7 +472,7 @@ module Rummager
       @exec_list = args.delete(:exec_list)
       @dep_jobs = args.delete(:dep_jobs)
       @needed_test = args.delete(:needed_test)
-      @userid = args.delete(:userid)
+      @user = args.delete(:user)
       if !args.empty?
         raise ArgumentError, "ClickExec'#{@job_name}' defenition has unused/invalid key-values:#{args}"
       end
