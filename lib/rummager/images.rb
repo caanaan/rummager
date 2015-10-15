@@ -42,6 +42,7 @@ end # ImageTaskBase
 class Rummager::ImageBuildTask < Rummager::ImageTaskBase
   attr_accessor :source
   attr_accessor :add_files
+  attr_accessor :import_filename
   
   IMG_BUILD_ARGS = {
   :forcerm => true,
@@ -51,7 +52,9 @@ class Rummager::ImageBuildTask < Rummager::ImageTaskBase
   def fingerprint_sources
     content = nil
     # grab the source string or source directory as the content
-    if @source.is_a?( String )
+    if ! @import_filename.nil?
+      content = @import_filename
+    elsif @source.is_a?( String )
       content = @source
       # include any added files in the hash
       if @add_files
@@ -82,16 +85,24 @@ class Rummager::ImageBuildTask < Rummager::ImageTaskBase
       @build_args[:'t'] = "#{@repo}:#{fingerprint}"
       puts "Image '#{@repo}:#{fingerprint}' begin build"
       
-      if @source.is_a?( Dir )
+      if ! @import_filename.nil?
+        puts "restoring from file '#{@import_filename}'"
+        reader = File.open(@import_filename)
+        begin
+          newimage = Docker::Image.import_stream( @build_args ) { reader.read(1024).to_s }
+        ensure
+          reader.close
+        end
+      elsif @source.is_a?( Dir )
         puts "building from dir '#{Dir.to_s}'"
-          newimage = Docker::Image.build_from_dir( @source, @build_args ) do |c|
-            begin
-              print JSON(c)['stream']
-              rescue
-              print "WARN JSON parse error with:" + c
-            end
+        newimage = Docker::Image.build_from_dir( @source, @build_args ) do |c|
+          begin
+            print JSON(c)['stream']
+          rescue
+            print "WARN JSON parse error with:" + c
           end
-        else
+        end
+      else
         puts "building from string/tar"  if Rake.verbose == true
         tarout = StringIO.new
         Gem::Package::TarWriter.new(tarout) do |tarin|
@@ -107,11 +118,14 @@ class Rummager::ImageBuildTask < Rummager::ImageTaskBase
         newimage = Docker::Image.build_from_tar( tarout.tap(&:rewind), @build_args ) do |c|
           begin
             print JSON(c)['stream']
-            rescue
+          rescue
             print "WARN JSON parse error with:" + c
           end
         end
       end
+      newimage.tag( 'repo' => @repo,
+                   'tag' => @fingerprint,
+                   'force' => true )
       newimage.tag( 'repo' => @repo,
                     'tag' => 'latest',
                     'force' => true )
@@ -155,6 +169,7 @@ class Rummager::ClickImage < Rake::TaskLib
   attr_accessor :image_name
   attr_accessor :repo_base
   attr_accessor :source
+  attr_accessor :import_filename
   attr_accessor :add_files
   attr_accessor :dep_image
   attr_accessor :dep_other
@@ -165,8 +180,9 @@ class Rummager::ClickImage < Rake::TaskLib
     @image_name = image_name
     @repo_base = args.delete(:repo_base) || Rummager.repo_base
     @source = args.delete(:source)
+    @import_filename = args.delete(:import_filename)
     @add_files = args.delete(:add_files)
-    if @source.nil?
+    if @source.nil? && @import_filename.nil?
       @source = Dir.new("./#{@image_name}/")
       puts "no direct source, use #{@source.path}" if Rake.verbose == true
     end
@@ -191,6 +207,7 @@ class Rummager::ClickImage < Rake::TaskLib
         
         buildtask = Rummager::ImageBuildTask.define_task :build
         buildtask.source = @source
+        buildtask.import_filename = @import_filename
         buildtask.repo = @image_args[:repo]
         buildtask.tag = buildtask.fingerprint
         buildtask.add_files = @add_files
