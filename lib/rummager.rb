@@ -12,8 +12,8 @@ require 'rummager/util'
 
 # allow long runs through Excon, otherwise commands that
 # take a long time will fail due to timeout
-Excon.defaults[:write_timeout] = 10000
-Excon.defaults[:read_timeout] = 10000
+Excon.defaults[:write_timeout] = 30000
+Excon.defaults[:read_timeout] = 30000
 
 # provide Docker verboseness
 if Rake.verbose == true
