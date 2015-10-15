@@ -81,6 +81,7 @@ module Rummager
   class ContainerCreateTask < Rummager::ContainerTaskBase
     attr_accessor :args_create
     attr_accessor :command
+    attr_accessor :username
     attr_accessor :exposed_ports
     attr_accessor :image_name
     attr_accessor :repo_base
@@ -97,6 +98,9 @@ module Rummager
         create_args['name'] = @container_name
         if @command
           create_args['Cmd'] = @command
+        end
+        if @username
+          create_args['User'] = @username
         end
         if @exposed_ports
           create_args['ExposedPorts'] = {};
@@ -239,6 +243,22 @@ module Rummager
 
   end #ContainerEnterTask
 
+  class ContainerExportTask < Rummager::ContainerTaskBase
+      attr_accessor :export_file
+      def needed?
+          return ! File.exists?( @export_file )
+      end
+      
+      def initialize(task_name, app)
+          super(task_name,app)
+          @actions << Proc.new {
+              puts "Exporting: #{@container_name} to '#{@export_file}'"
+              system("docker export #{docker_obj.id} > #{@export_file}")
+          }
+      end # initialize
+      
+  end #ContainerEnterTask
+
 
   # Template to generate tasks for Container lifecycle
   class ClickContainer < Rake::TaskLib
@@ -247,6 +267,7 @@ module Rummager
     attr_accessor :image_nobuild
     attr_accessor :repo_base
     attr_accessor :command
+    attr_accessor :username
     attr_accessor :args_create
     attr_accessor :args_start
     attr_accessor :volumes_from
@@ -259,6 +280,7 @@ module Rummager
     attr_accessor :allow_enter
     attr_accessor :enter_dep_jobs
     attr_accessor :noclean
+    attr_accessor :export_file
   
     def initialize(container_name,args={})
       @container_name = container_name
@@ -266,6 +288,7 @@ module Rummager
       @image_nobuild = args.delete(:image_nobuild)
       @repo_base = args.delete(:repo_base) || Rummager.repo_base
       @command = args.delete(:command)
+      @username = args.delete(:username)
       @args_create = args.delete(:args_create) || CNTNR_ARGS_CREATE
       @args_start = args.delete(:args_start) || {}
       @volumes_from = args.delete(:volumes_from)
@@ -281,6 +304,7 @@ module Rummager
       @enter_dep_jobs = args.delete(:enter_dep_jobs) || []
       @allow_enter = args.delete(:allow_enter)
       @noclean = args.delete(:noclean)
+      @export_file = args.delete(:export_file) || "#{@container_name}.tar"
       if !args.empty?
         raise ArgumentError, "ClickContainer'#{@container_name}' defenition has unused/invalid key-values:#{args}"
       end
@@ -298,6 +322,7 @@ module Rummager
           realcreatetask.repo_base = @repo_base
           realcreatetask.args_create = @args_create
           realcreatetask.command = @command
+          realcreatetask.username = @username
           realcreatetask.exposed_ports = @exposed_ports
           
           if @image_nobuild == true
@@ -366,7 +391,12 @@ module Rummager
           else
             Rake::Task[:"containers:clean"].enhance( [ :"containers:#{@container_name}:rm" ] )
           end
-          
+
+          export_task = Rummager::ContainerExportTask.define_task :export
+          export_task.container_name = @container_name
+          export_task.export_file = @export_file
+          Rake::Task["containers:#{@container_name}:export"].enhance( [ :"containers:#{@container_name}:start" ] )
+
         end # namespace @container_name
       end # namespace "containers"
         
