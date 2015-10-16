@@ -87,7 +87,11 @@ class Rummager::ImageBuildTask < Rummager::ImageTaskBase
       
       if ! @import_filename.nil?
         puts "restoring from file '#{@import_filename}'"
-        reader = File.open(@import_filename)
+        if @import_filename.rindex('.bz2')
+            reader = IO.popen("bunzip2 -c #{@import_filename}")
+        else
+            reader = File.open(@import_filename)
+        end
         begin
           newimage = Docker::Image.import_stream( @build_args ) { reader.read(1024).to_s }
         ensure
