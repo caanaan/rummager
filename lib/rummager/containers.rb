@@ -253,7 +253,11 @@ module Rummager
           super(task_name,app)
           @actions << Proc.new {
               puts "Exporting: #{@container_name} to '#{@export_file}'"
-              system("docker export #{docker_obj.id} > #{@export_file}")
+              if @export_file.rindex('.bz2')
+                  system("docker export #{docker_obj.id} | bzip2 -c > #{@export_file}")                  
+              else
+                system("docker export #{docker_obj.id} > #{@export_file}")
+              end
           }
       end # initialize
       

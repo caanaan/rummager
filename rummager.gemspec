@@ -1,6 +1,6 @@
 Gem::Specification.new do |s|
   s.name = 'rummager'
-  s.version = '0.5.13'
+  s.version = '0.5.14'
   s.date = '2015-10-16'
   s.summary = 'Rummager'
   s.description = 'Rake integration with docker-api'
