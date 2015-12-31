@@ -451,6 +451,7 @@ module Rummager
       super(task_name,app)
       @actions << Proc.new {
   
+        puts ">>executing task: #{task_name}"
         @exec_list.each do |e|
           
           hide_output = e.delete(:hide_output)
@@ -470,6 +471,7 @@ module Rummager
           end
           
         end # @exec_list.each
+        puts "<<completed task: #{task_name}"
 
         if ! @ident_hash.nil?
           puts "marking #{task_name} completed: #{ident_filename}" if Rake.verbose == true
