@@ -1,2 +1,5 @@
 rummager.xcworkspace
 *.gem
+Gemfile.lock
+.bundle
+vendor
